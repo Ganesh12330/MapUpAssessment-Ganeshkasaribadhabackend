@@ -1,0 +1,95 @@
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
+    "log"
+    "net/http"
+    "os"
+)
+
+type Location struct {
+    ID int `json:"id"`
+    Name string `json:"name"`
+    Category string `json:"category"`
+    Latitude float64 `json:"latitude"`
+    Longitude float64 `json:"longitude"`
+}
+
+type LocationRepository struct {
+    locations []Location
+}
+
+func (repository *LocationRepository) GetAllLocations() []Location {
+    return repository.locations
+}
+
+func (repository *LocationRepository) GetLocationByID(id int) (*Location, error) {
+    for _, location := range repository.locations {
+        if location.ID == id {
+            return &location, nil
+        }
+    }
+    return nil, fmt.Errorf("location not found")
+}
+
+func (repository *LocationRepository) CreateLocation(location Location) {
+    repository.locations = append(repository.locations, location)
+}
+
+func (repository *LocationRepository) UpdateLocation(location Location) error {
+    for i, existingLocation := range repository.locations {
+        if existingLocation.ID == location.ID {
+            repository.locations[i] = location
+            return nil
+        }
+    }
+    return fmt.Errorf("location not found")
+}
+
+func (repository *LocationRepository) DeleteLocation(id int) error {
+    for i, location := range repository.locations {
+        if location.ID == id {
+            repository.locations = append(repository.locations[:i], repository.locations[i+1:]...)
+            return nil
+        }
+    }
+    return fmt.Errorf("location not found")
+}
+
+func main() {
+    // Create a new location repository
+    repository := &LocationRepository{}
+
+    // Load the locations from a file
+    locationsJSON, err := ioutil.ReadFile("locations.json")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Unmarshal the locations from JSON
+    err = json.Unmarshal(locationsJSON, &repository.locations)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create a new HTTP server
+    http.HandleFunc("/locations", func(w http.ResponseWriter, r *http.Request) {
+        // Get the locations from the repository
+        locations := repository.GetAllLocations()
+
+        // Marshal the locations to JSON
+        locationsJSON, err := json.Marshal(locations)
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        // Write the JSON to the response
+        w.Header().Set("Content-Type", "application/json")
+        w.Write(locationsJSON)
+    })
+
+    // Start the HTTP server
+    log.Fatal(http.ListenAndServe(":"+os.Getenv("PORT"), nil))
+}
